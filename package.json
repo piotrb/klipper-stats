@@ -3,8 +3,6 @@
   "packageManager": "yarn@3.2.1",
   "scripts": {
     "dev": "node -r ts-node/register src/main.ts",
-    "build": "yarn run tsc ./src/*.ts",
-    "clean": "rm -vf src/**/*.js",
     "format": "yarn prettier --write \\*.js src/\\*.ts"
   },
   "devDependencies": {
