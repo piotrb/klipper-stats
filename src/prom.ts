@@ -35,7 +35,7 @@ export async function emitStats(status: PrinterStatus, metrics: Metrics) {
     vk: VK,
     m: MT
   ) {
-    if (o[k][vk]) {
+    if (o[k][vk] !== undefined) {
       m.set({ name: k }, o[k][vk] as any as number)
     }
   }

@@ -1,0 +1,11 @@
+version: '3'
+services:
+    klipper-stats:
+        container_name: klipper-stats
+        build: ../klipper-stats
+        ports:
+            - "3030:3030"
+        environment:
+            - PORT=3030
+            - KLIPPER_HOST=172.17.0.1
+        restart: on-failure
