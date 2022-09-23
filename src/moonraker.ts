@@ -2,7 +2,7 @@ import { JSONRPCClient, JSONRPCID, JSONRPCError } from 'json-rpc-2.0'
 
 import * as WebSocket from 'websocket'
 
-import { updateFan, updateTemp, PrinterStatus } from './stats'
+import { updateFan, updateTemp, PrinterStatus, updateMcu } from './stats'
 
 interface JsonRpcPayload {
   jsonrpc: '2.0'
@@ -31,8 +31,8 @@ function setupWS(onConnect: (connection: WebSocket.connection) => void) {
     connection.on('error', function (error) {
       console.log('Connection Error: ' + error.toString())
     })
-    connection.on('close', function () {
-      console.log('echo-protocol Connection Closed')
+    connection.on('close', function (...args: any[]) {
+      console.log('WS Connection Closed', ...args)
     })
     onConnect(connection)
   })
@@ -52,6 +52,9 @@ export function setupClient(): Promise<[JSONRPCClient, EventTarget]> {
         if (message.type === 'utf8') {
           const payload = JSON.parse(message.utf8Data) as JsonRpcPayload
           client.receive(payload)
+          // if (payload.method !== 'notify_proc_stat_update') {
+          //   console.info(payload)
+          // }
           extraHandler.dispatchEvent(new CustomEvent(payload.method, { detail: payload.params }))
         }
       })
@@ -62,6 +65,7 @@ export function setupClient(): Promise<[JSONRPCClient, EventTarget]> {
 }
 
 export function normalizeAndMergeStatus(into: PrinterStatus, status: any) {
+  // console.info('status', status)
   for (const key of Object.keys(status)) {
     if (key === 'extruder') {
       // extruder
@@ -89,6 +93,12 @@ export function normalizeAndMergeStatus(into: PrinterStatus, status: any) {
       // heater_fan
       const name = key.match(/^heater_fan (.+)/)![1]
       updateFan(into, status, key, name)
+    } else if (key == "mcu") {
+      const name = "mcu"
+      updateMcu(into, status, key, name)
+    } else if (key.match(/^mcu (.+)/)) {
+      const name = key.match(/^mcu (.+)/)![1]
+      updateMcu(into, status, key, name)
     } else {
       console.info(key, status[key])
     }
