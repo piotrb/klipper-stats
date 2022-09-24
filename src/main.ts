@@ -3,14 +3,16 @@ import { register } from 'prom-client'
 import express from 'express'
 
 import { setupClient, normalizeAndMergeStatus } from './moonraker'
-import { PrinterStatus } from './stats'
 import { initMetrics, emitStats } from './prom'
+import { PrinterStatus } from './internal_status_data_api'
 
 async function doSubscribe(
   client: Awaited<ReturnType<typeof setupClient>>[0],
   status: PrinterStatus,
   metrics: ReturnType<typeof initMetrics>
 ) {
+  // null value = all sub-keys
+
   const objects = (await client.request('printer.objects.list', {})).objects
 
   const requestedObjects: any = {

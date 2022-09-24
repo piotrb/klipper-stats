@@ -1,8 +1,9 @@
 import { JSONRPCClient, JSONRPCID, JSONRPCError } from 'json-rpc-2.0'
 
 import * as WebSocket from 'websocket'
+import { PrinterStatus } from './internal_status_data_api'
 
-import { updateFan, updateTemp, PrinterStatus, updateMcu } from './stats'
+import { updateFan, updateTemp, updateMcu } from './stats'
 
 interface JsonRpcPayload {
   jsonrpc: '2.0'
@@ -93,8 +94,8 @@ export function normalizeAndMergeStatus(into: PrinterStatus, status: any) {
       // heater_fan
       const name = key.match(/^heater_fan (.+)/)![1]
       updateFan(into, status, key, name)
-    } else if (key == "mcu") {
-      const name = "mcu"
+    } else if (key == 'mcu') {
+      const name = 'mcu'
       updateMcu(into, status, key, name)
     } else if (key.match(/^mcu (.+)/)) {
       const name = key.match(/^mcu (.+)/)![1]

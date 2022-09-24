@@ -1,4 +1,4 @@
-FROM node as base
+FROM node:18 as base
 
 RUN mkdir -p /app
 RUN chown -R node:node /app
@@ -29,7 +29,9 @@ RUN --mount=type=cache,target=/opt/.yarn,id=yarn,uid=1000,gid=1000 YARN_CACHE_FO
 COPY --chown=node:node tsconfig.json /app
 COPY --chown=node:node src /app/src
 
-RUN yarn tsc --outDir dist
+RUN --mount=type=cache,target=/opt/ts-cache,id=tsc,uid=1000,gid=1000 \
+  yarn tsc \
+  --outDir dist
 
 ###
 
