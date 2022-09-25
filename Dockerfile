@@ -21,7 +21,7 @@ RUN --mount=type=cache,target=/opt/.yarn,id=yarn,uid=1000,gid=1000 YARN_CACHE_FO
 
 ###
 
-FROM prod as build
+FROM prod as build-deps
 
 RUN --mount=type=cache,target=/opt/.yarn,id=yarn,uid=1000,gid=1000 YARN_CACHE_FOLDER=/opt/.yarn \
   yarn workspaces focus --all
@@ -29,9 +29,19 @@ RUN --mount=type=cache,target=/opt/.yarn,id=yarn,uid=1000,gid=1000 YARN_CACHE_FO
 COPY --chown=node:node tsconfig.json /app
 COPY --chown=node:node src /app/src
 
+###
+
+FROM build-deps as build
+
 RUN --mount=type=cache,target=/opt/ts-cache,id=tsc,uid=1000,gid=1000 \
   yarn tsc \
   --outDir dist
+
+###
+
+FROM build-deps as tsnode
+
+CMD yarn ts-node src/main.ts
 
 ###
 

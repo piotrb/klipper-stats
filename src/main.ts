@@ -2,63 +2,10 @@ import { register } from 'prom-client'
 
 import express from 'express'
 
-import { setupClient, normalizeAndMergeStatus } from './moonraker'
+import { doSubscribe, normalizeAndMergeStatus } from './moonraker'
 import { initMetrics, emitStats } from './prom'
 import { PrinterStatus } from './internal_status_data_api'
-
-async function doSubscribe(
-  client: Awaited<ReturnType<typeof setupClient>>[0],
-  status: PrinterStatus,
-  metrics: ReturnType<typeof initMetrics>
-) {
-  // null value = all sub-keys
-
-  const objects = (await client.request('printer.objects.list', {})).objects
-
-  const requestedObjects: any = {
-    extruder: ['temperature', 'target', 'power'],
-    heater_bed: ['temperature', 'target', 'power'],
-    fan: [
-      'speed',
-      // 'rpm'
-    ],
-    mcu: null,
-  }
-  for (const object of objects) {
-    if (object.match(/^temperature_sensor /)) {
-      requestedObjects[object] = ['temperature']
-    }
-    if (object.match(/^fan_generic /)) {
-      requestedObjects[object] = [
-        'speed',
-        // 'rpm'
-      ]
-    }
-    if (object.match(/^temperature_fan /)) {
-      requestedObjects[object] = [
-        'speed',
-        // 'rpm',
-        'temperature',
-        'target',
-      ]
-    }
-    if (object.match(/^heater_fan /)) {
-      requestedObjects[object] = ['speed', 'rpm']
-    }
-    if (object.match(/^mcu /)) {
-      requestedObjects[object] = null
-    }
-  }
-  const initialStatus = (
-    await client.request('printer.objects.subscribe', {
-      objects: requestedObjects,
-    })
-  ).status
-  normalizeAndMergeStatus(status, initialStatus)
-  emitStats(status, metrics).catch(e => {
-    console.error('Emit Error:', e)
-  })
-}
+import { setupClient } from './moonraker_setup'
 
 async function main() {
   const [client, extraHandler] = await setupClient()
@@ -66,11 +13,19 @@ async function main() {
 
   const server = express()
 
-  const status: PrinterStatus = { fans: {}, temps: {}, mcus: {} }
+  const status: PrinterStatus = {
+    webhooks: {
+      state: 'unknown',
+      state_message: '',
+    },
+    fans: {},
+    temps: {},
+    mcus: {},
+  }
 
   extraHandler.addEventListener('notify_status_update', (e: any) => {
     const detail = e.detail[0] as any
-    normalizeAndMergeStatus(status, detail)
+    normalizeAndMergeStatus(status, detail, extraHandler)
     emitStats(status, metrics).catch(e => {
       console.error('Emit Error:', e)
     })
@@ -83,10 +38,26 @@ async function main() {
   extraHandler.addEventListener('notify_klippy_ready', (e: any) => {
     console.info('Klippy Ready!')
     console.info('re-subscribing ...')
-    doSubscribe(client, status, metrics)
+    doSubscribe(client, status, metrics, extraHandler)
   })
 
-  doSubscribe(client, status, metrics)
+  extraHandler.addEventListener('webhooks_shutdown', (e: any) => {
+    console.info('Printer Shutdown!')
+
+    console.info('Resetting all fans to their shutdown speed')
+    for (const fanName of Object.keys(status.fans)) {
+      status.fans[fanName].speed = status.fans[fanName].shutdown_speed
+    }
+
+    console.info('Resetting all temps to zero power')
+    for (const tempName of Object.keys(status.temps)) {
+      if (status.temps[tempName].power > 0) {
+        status.temps[tempName].power = 0
+      }
+    }
+  })
+
+  doSubscribe(client, status, metrics, extraHandler)
 
   // Setup server to Prometheus scrapes:
 

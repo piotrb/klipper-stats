@@ -1,43 +1,47 @@
-import { FanStatusData, McuStatusData, StatusData, TemperatureStatusData } from './ moonraker_api'
+import { FanStatusData, McuStatusData, TemperatureStatusData, WebhooksData } from './moonraker_api'
 import { newFanStatus, newMcuStatus, newTempStatus, PrinterStatus, setif } from './internal_status_data_api'
+import { MoonrakerEvent } from './MoonrakerEvent'
 
-export function updateTemp(
-  into: PrinterStatus,
-  status: StatusData<TemperatureStatusData>,
-  key: keyof typeof status,
-  name: string
-) {
+export function updateWebhooks(into: PrinterStatus, data: WebhooksData, name: string, eventTarget: EventTarget) {
+  setif(data, 'state', into.webhooks, 'state')
+  setif(data, 'state_message', into.webhooks, 'state_message')
+
+  if (data.state === 'shutdown') {
+    eventTarget.dispatchEvent(new MoonrakerEvent('webhooks_shutdown', { detail: data }))
+  }
+}
+
+export function updateTemp(into: PrinterStatus, data: TemperatureStatusData, name: string, eventTarget: EventTarget) {
   if (into.temps[name] === undefined) into.temps[name] = newTempStatus()
 
-  setif(status[key], 'temperature', into.temps[name], 'temperature')
-  setif(status[key], 'target', into.temps[name], 'target')
-  setif(status[key], 'power', into.temps[name], 'power')
+  setif(data, 'temperature', into.temps[name], 'temperature')
+  setif(data, 'target', into.temps[name], 'target')
+  setif(data, 'power', into.temps[name], 'power')
+
+  if (into.webhooks.state === 'shutdown') {
+    if (into.temps[name].power > 0) into.temps[name].power = 0
+    if (into.temps[name].target > 0) into.temps[name].target = 0
+  }
 }
 
-export function updateFan(
-  into: PrinterStatus,
-  status: StatusData<FanStatusData>,
-  key: keyof typeof status,
-  name: string
-) {
+export function updateFan(into: PrinterStatus, data: FanStatusData, name: string, eventTarget: EventTarget) {
   if (into.fans[name] === undefined) into.fans[name] = newFanStatus()
 
-  setif(status[key], 'speed', into.fans[name], 'speed')
+  setif(data, 'speed', into.fans[name], 'speed')
+
+  if (into.webhooks.state === 'shutdown') {
+    into.fans[name].speed = into.fans[name].shutdown_speed
+  }
 }
 
-export function updateMcu(
-  into: PrinterStatus,
-  status: StatusData<McuStatusData>,
-  key: keyof typeof status,
-  name: string
-) {
+export function updateMcu(into: PrinterStatus, data: McuStatusData, name: string, eventTarget: EventTarget) {
   if (into.mcus[name] === undefined) into.mcus[name] = newMcuStatus()
-  setif(status[key], 'mcu_build_versions', into.mcus[name], 'build_versions')
-  setif(status[key], 'mcu_version', into.mcus[name], 'version')
-  if (status[key].mcu_constants !== undefined) {
-    setif(status[key].mcu_constants!, 'MCU', into.mcus[name], 'mcu')
+  setif(data, 'mcu_build_versions', into.mcus[name], 'build_versions')
+  setif(data, 'mcu_version', into.mcus[name], 'version')
+  if (data.mcu_constants !== undefined) {
+    setif(data.mcu_constants!, 'MCU', into.mcus[name], 'mcu')
   }
-  if (status[key].last_stats !== undefined) {
+  if (data.last_stats !== undefined) {
     const keys = [
       'retransmit_seq',
       'receive_seq',
@@ -57,7 +61,7 @@ export function updateMcu(
       'ready_bytes',
     ] as const
     for (const fk of keys) {
-      setif(status[key].last_stats!, fk, into.mcus[name].stats, fk as any)
+      setif(data.last_stats!, fk, into.mcus[name].stats, fk as any)
     }
   }
 }

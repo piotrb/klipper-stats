@@ -20,7 +20,8 @@ const mcu_stat_gauges = {
   ready_bytes: 'ready_bytes',
 } as const
 
-const mcu_keys = Object.keys(mcu_stat_gauges) as (keyof typeof mcu_stat_gauges)[]
+type McuStatGaugeKeys = keyof typeof mcu_stat_gauges
+const mcu_keys = Object.keys(mcu_stat_gauges) as McuStatGaugeKeys[]
 
 export function initMetrics() {
   const mcu_gauges = mcu_keys.reduce((obj, item) => {
@@ -30,7 +31,7 @@ export function initMetrics() {
       labelNames: ['name'],
     })
     return obj
-  }, {} as Record<string, Gauge<any>>)
+  }, {} as Record<McuStatGaugeKeys, Gauge<any>>)
   return {
     fan_speed: new Gauge({
       name: 'moonraker_fan_speed',
@@ -57,33 +58,31 @@ export function initMetrics() {
       help: 'non numeric data, value is always 1',
       labelNames: ['name', 'mcu', 'build_versions', 'version'],
     }),
-    mcu_stats: {
-      ...mcu_gauges,
-    },
+    mcu_stats: mcu_gauges,
   } as const
 }
 
 export type Metrics = ReturnType<typeof initMetrics>
 
 export async function emitStats(status: PrinterStatus, metrics: Metrics) {
-  function _s<KT extends string, T extends any, VK extends keyof T, MT extends Gauge<never>>(
-    o: { [key in KT]: T },
+  function _s<KT extends string, T extends number, VK extends string, MT extends Gauge<never>>(
+    o: Record<KT, Record<VK, T>>,
     k: KT,
     vk: VK,
-    m: MT
+    m: MT,
+    condition: (v: number) => boolean = () => true
   ) {
-    if (o[k][vk] !== undefined) {
+    if (o[k][vk] !== undefined && condition(o[k][vk])) {
       m.set({ name: k }, o[k][vk] as any as number)
     }
   }
-  // console.info(status)
   for (const fanName of Object.keys(status.fans)) {
     _s(status.fans, fanName, 'speed', metrics.fan_speed)
   }
   for (const tempName of Object.keys(status.temps)) {
     _s(status.temps, tempName, 'temperature', metrics.temp_temperature)
-    _s(status.temps, tempName, 'power', metrics.temp_power)
-    _s(status.temps, tempName, 'target', metrics.temp_target)
+    _s(status.temps, tempName, 'power', metrics.temp_power, v => v >= 0)
+    _s(status.temps, tempName, 'target', metrics.temp_target, v => v >= 0)
   }
   for (const mcuName of Object.keys(status.mcus)) {
     metrics.mcu_info.set(

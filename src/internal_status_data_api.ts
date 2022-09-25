@@ -1,5 +1,6 @@
 interface FanStatus {
   speed: number
+  shutdown_speed: number
   // rpm?: number
 }
 interface TempStatus {
@@ -35,11 +36,16 @@ export interface PrinterStatus {
   fans: Record<string, FanStatus>
   temps: Record<string, TempStatus>
   mcus: Record<string, McuStatus>
+  webhooks: {
+    state: 'unknown' | 'startup' | 'ready' | 'shutdown' | 'error'
+    state_message: string
+  }
 }
 
 export function newFanStatus(): FanStatus {
   return {
     speed: -1,
+    shutdown_speed: -1,
   }
 }
 

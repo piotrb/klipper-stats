@@ -1,3 +1,7 @@
+export interface WebhooksData {
+  state?: 'startup' | 'ready' | 'shutdown' | 'error'
+  state_message?: string
+}
 export interface TemperatureStatusData {
   temperature?: number
   target?: number
@@ -44,6 +48,6 @@ export interface McuStatusData {
     // BUS_PINS_*: string
   } & Record<string, unknown>
 }
-export interface StatusData<T> {
-  [key: string]: T
-}
+// export interface StatusData<T> {
+//   [key: string]: T
+// }

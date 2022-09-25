@@ -1,107 +1,112 @@
-import { JSONRPCClient, JSONRPCID, JSONRPCError } from 'json-rpc-2.0'
+import { PrinterStatus, setif } from './internal_status_data_api'
+import { ClientType } from './moonraker_setup'
+import { emitStats, Metrics } from './prom'
 
-import * as WebSocket from 'websocket'
-import { PrinterStatus } from './internal_status_data_api'
+import { updateFan, updateTemp, updateMcu, updateWebhooks } from './stats'
+import { UpdateHelper } from './UpdateHelper'
 
-import { updateFan, updateTemp, updateMcu } from './stats'
+async function determineSubscriptionRequestedObjects(client: ClientType) {
+  const objects = (await client.request('printer.objects.list', {})).objects
 
-interface JsonRpcPayload {
-  jsonrpc: '2.0'
-  method: string
-  params: unknown[]
-  id: JSONRPCID
-  error: JSONRPCError
+  // null value = all sub-keys
+
+  const requestedObjects: any = {
+    webhooks: null,
+    extruder: ['temperature', 'target', 'power'],
+    heater_bed: ['temperature', 'target', 'power'],
+    mcu: null,
+  }
+
+  for (const object of objects) {
+    if (object.match(/^temperature_sensor /)) {
+      requestedObjects[object] = ['temperature']
+    }
+    if (object.match(/^(?:fan$|fan_generic |heater_fan )/)) {
+      requestedObjects[object] = ['speed']
+    }
+    if (object.match(/^temperature_fan /)) {
+      requestedObjects[object] = ['speed', 'temperature', 'target']
+    }
+    if (object.match(/^mcu /)) {
+      requestedObjects[object] = null
+    }
+  }
+  return requestedObjects
 }
 
-class CustomEvent extends Event {
-  public detail: any
-  constructor(type: string, eventInitDict?: (EventInit & { detail?: any }) | undefined) {
-    super(type, eventInitDict)
-    this.detail = eventInitDict?.detail
+export async function doSubscribe(
+  client: ClientType,
+  status: PrinterStatus,
+  metrics: Metrics,
+  eventTarget: EventTarget
+) {
+  const requestedObjects = await determineSubscriptionRequestedObjects(client)
+
+  const config = (
+    await client.request('printer.objects.query', {
+      objects: {
+        configfile: null,
+      },
+    })
+  ).status.configfile
+
+  const initialStatus = (
+    await client.request('printer.objects.subscribe', {
+      objects: requestedObjects,
+    })
+  ).status
+
+  normalizeAndMergeStatus(status, initialStatus, eventTarget)
+
+  mergeConfigToStatus(status, config, eventTarget)
+
+  emitStats(status, metrics).catch(e => {
+    console.error('Emit Error:', e)
+  })
+  console.info('Subscription ready')
+}
+
+function mergeConfigToStatus(into: PrinterStatus, config: any, eventTarget: EventTarget) {
+  // copy in shutdown speed for all fans
+  const config_sections = ['temperature_fan', 'fan', 'heater_fan']
+  if (config && (config as any).settings) {
+    const settings = (config as any).settings
+    for (const key of Object.keys(settings)) {
+      for (const section of config_sections) {
+        const match = key.match(new RegExp(`^${section}(?: (?<name>.+)|$)`))
+        if (match) {
+          const name = match.groups?.['name'] ?? key
+          setif(settings[key], 'shutdown_speed', into.fans[name], 'shutdown_speed')
+        }
+      }
+    }
   }
 }
 
-function setupWS(onConnect: (connection: WebSocket.connection) => void) {
-  const klipper_host = process.env.KLIPPER_HOST
-  const ws = new WebSocket.client()
-  ws.on('connectFailed', error => {
-    console.log('Connect Error: ' + error.toString())
+export function normalizeAndMergeStatus(into: PrinterStatus, status: any, eventTarget: EventTarget) {
+  const updateHelper = new UpdateHelper()
+
+  updateHelper.on(['fan', /^(?:temperature_fan|fan_generic|heater_fan) (?<name>.+)$/], (data, name) => {
+    updateFan(into, data as any, name, eventTarget)
   })
-  ws.on('connect', connection => {
-    console.log('WebSocket Client Connected')
-    connection.on('error', function (error) {
-      console.log('Connection Error: ' + error.toString())
-    })
-    connection.on('close', function (...args: any[]) {
-      console.log('WS Connection Closed', ...args)
-    })
-    onConnect(connection)
+
+  updateHelper.on(['extruder', 'heater_bed', /^(?:temperature_sensor|temperature_fan) (?<name>.+)$/], (data, name) => {
+    updateTemp(into, data as any, name, eventTarget)
   })
-  ws.connect(`ws://${klipper_host}:7125/websocket`)
-}
 
-export function setupClient(): Promise<[JSONRPCClient, EventTarget]> {
-  return new Promise((resolve, reject) => {
-    setupWS(connection => {
-      const extraHandler = new EventTarget()
-
-      const client = new JSONRPCClient(async payload => {
-        connection.send(JSON.stringify(payload))
-      })
-
-      connection.on('message', function (message) {
-        if (message.type === 'utf8') {
-          const payload = JSON.parse(message.utf8Data) as JsonRpcPayload
-          client.receive(payload)
-          // if (payload.method !== 'notify_proc_stat_update') {
-          //   console.info(payload)
-          // }
-          extraHandler.dispatchEvent(new CustomEvent(payload.method, { detail: payload.params }))
-        }
-      })
-
-      resolve([client, extraHandler])
-    })
+  updateHelper.on(['mcu', /^(?:mcu) (?<name>.+)$/], (data, name) => {
+    updateMcu(into, data as any, name, eventTarget)
   })
-}
 
-export function normalizeAndMergeStatus(into: PrinterStatus, status: any) {
-  // console.info('status', status)
+  updateHelper.on(['webhooks'], (data, name) => {
+    updateWebhooks(into, data as any, name, eventTarget)
+  })
+
+  updateHelper.onElse((data, key) => {
+    console.info('unmatched update:', `key: ${key}`, 'data:', data)
+  })
+
   for (const key of Object.keys(status)) {
-    if (key === 'extruder') {
-      // extruder
-      updateTemp(into, status, key, 'extruder')
-    } else if (key === 'fan') {
-      // fan
-      updateFan(into, status, key, 'cnc')
-    } else if (key === 'heater_bed') {
-      // heater_bed
-      updateTemp(into, status, key, 'bed')
-    } else if (key.match(/^temperature_sensor /)) {
-      // temperature_sensor
-      const name = key.match(/^temperature_sensor (.+)/)![1]
-      updateTemp(into, status, key, name)
-    } else if (key.match(/^temperature_fan /)) {
-      // temperature_fan
-      const name = key.match(/^temperature_fan (.+)/)![1]
-      updateTemp(into, status, key, name)
-      updateFan(into, status, key, name)
-    } else if (key.match(/^fan_generic /)) {
-      // fan_generic
-      const name = key.match(/^fan_generic (.+)/)![1]
-      updateFan(into, status, key, name)
-    } else if (key.match(/^heater_fan /)) {
-      // heater_fan
-      const name = key.match(/^heater_fan (.+)/)![1]
-      updateFan(into, status, key, name)
-    } else if (key == 'mcu') {
-      const name = 'mcu'
-      updateMcu(into, status, key, name)
-    } else if (key.match(/^mcu (.+)/)) {
-      const name = key.match(/^mcu (.+)/)![1]
-      updateMcu(into, status, key, name)
-    } else {
-      console.info(key, status[key])
-    }
+    updateHelper.handle(key, status)
   }
 }
