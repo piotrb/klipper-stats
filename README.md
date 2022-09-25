@@ -1,7 +1,9 @@
 # klipper-stats
 
-## Getting started
+## Development
 
+```bash
 $ corepack enable
 $ asdf reshim nodejs
 $ yarn install
+```
