@@ -2,7 +2,7 @@
 
 ## Installation
 
-See the wiki: [Installation](./wiki/Installation)
+See the wiki: [Installation](../../wiki/Installation)
 
 ## Development
 
