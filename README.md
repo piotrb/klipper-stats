@@ -8,7 +8,7 @@
 
 ## Installation
 
-See the wiki: [Installation](../../wiki/Installation)
+See the docs: [docs](./docs)
 
 ## Development
 
