@@ -7,5 +7,6 @@ services:
       - '3030:3030'
     environment:
       - PORT=3030
-      - KLIPPER_HOST=172.17.0.1
+      - KLIPPER_HOST=127.0.0.1
     restart: on-failure
+    network_mode: host

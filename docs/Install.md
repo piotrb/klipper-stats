@@ -10,7 +10,7 @@ I recommend a tweak just to make grafana a bit more secure ..
 
 In the docker-compose.yml file, change the line: `GF_AUTH_ANONYMOUS_ENABLED=true` to `GF_AUTH_ANONYMOUS_ENABLED=false`
 
-After making the change, restart things .. so in the `prometheus-grafana-raspberry-pi` run `docker-compose up -d`
+After making the change, restart things .. so in the `prometheus-grafana-raspberry-pi` run `docker compose up -d`
 
 ...
 
@@ -18,16 +18,16 @@ Once you have that going and you can confirm that node-exporter is actually gett
 
 ...
 
-# Step 1: docker-compose up -d
+# Step 1: docker compose up -d
 
 (all the defaults should just work, there really isn't much config here)
 
 You can edit the envs in the docker-compose.yml file
 
 * `PORT` is the port the http server runs on
-* `KLIPPER_HOST` is .. well .. where it can find moonraker running .. since we're running this in a container .. the special `172.17.0.1` ip should just work by pointing back to the actual host
+* `KLIPPER_HOST` is .. well .. where it can find moonraker running .. since we're running this in a container .. you can use `127.0.0.1` with the networking mode being `host`.
 
-(obviously if you change any of these, restart the daemon .. `docker-compose up -d`)
+(obviously if you change any of these, restart the daemon .. `docker compose up -d`)
 
 # Step 2: register it with prometheus
 
@@ -39,11 +39,11 @@ in the `scrape_configs` section add a new entry at the bottom
   - job_name: 'klipper-stats'
     scrape_interval: 1s
     static_configs:
-      - targets: ['172.17.0.1:3030']
+      - targets: ['127.0.0.1:3030']
 ```
 
 again here the `3030` is the Port you set the daemon to run on .. 
-And since this is a container .. we're just exposing the 3030 port back onto the host in the other docker-compose file .. so its accessible via 3030 on the host once again (thus the special `172.17.0.1` ip address)
+And since this is a container .. but we're using host networking .. so its accessible via 3030 on the host
 
 # Step 3: the hard part .. ish .. 
 
