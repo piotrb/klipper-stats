@@ -21,6 +21,7 @@ async function main() {
     fans: {},
     temps: {},
     mcus: {},
+    bme280: {},
   }
 
   extraHandler.addEventListener('notify_status_update', (e: any) => {

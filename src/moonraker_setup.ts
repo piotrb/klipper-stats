@@ -11,7 +11,7 @@ interface JsonRpcPayload {
 }
 
 function setupWS(onConnect: (connection: WebSocket.connection) => void) {
-  const klipper_host = process.env.KLIPPER_HOST
+  const klipper_host = process.env.KLIPPER_HOST ?? "127.0.0.1"
   const ws = new WebSocket.client()
   ws.on('connectFailed', error => {
     console.log('Connect Error: ' + error.toString())

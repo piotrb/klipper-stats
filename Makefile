@@ -5,3 +5,5 @@ dev:
 run:
 	DOCKER_BUILDKIT=1 docker build . --target tsnode -t klipper-stats:run
 	docker run --rm -it -p 3031:3031 --env-file .env klipper-stats:run
+local:
+	PORT=13031 node -r ts-node/register src/main.ts

@@ -9,6 +9,12 @@ interface TempStatus {
   power: number
 }
 
+interface BME280Status {
+  temperature: number
+  humidity: number
+  pressure: number
+}
+
 interface McuStatus {
   build_versions: string
   version: string
@@ -36,9 +42,18 @@ export interface PrinterStatus {
   fans: Record<string, FanStatus>
   temps: Record<string, TempStatus>
   mcus: Record<string, McuStatus>
+  bme280: Record<string, BME280Status>
   webhooks: {
     state: 'unknown' | 'startup' | 'ready' | 'shutdown' | 'error'
     state_message: string
+  }
+}
+
+export function newBME280Status(): BME280Status {
+  return {
+    temperature: -1,
+    pressure: -1,
+    humidity: -1
   }
 }
 

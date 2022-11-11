@@ -1,5 +1,5 @@
-import { FanStatusData, McuStatusData, TemperatureStatusData, WebhooksData } from './moonraker_api'
-import { newFanStatus, newMcuStatus, newTempStatus, PrinterStatus, setif } from './internal_status_data_api'
+import { FanStatusData, McuStatusData, TemperatureStatusData, BME280StatusData, WebhooksData } from './moonraker_api'
+import { newFanStatus, newMcuStatus, newTempStatus, newBME280Status, PrinterStatus, setif } from './internal_status_data_api'
 import { MoonrakerEvent } from './MoonrakerEvent'
 
 export function updateWebhooks(into: PrinterStatus, data: WebhooksData, name: string, eventTarget: EventTarget) {
@@ -32,6 +32,14 @@ export function updateFan(into: PrinterStatus, data: FanStatusData, name: string
   if (into.webhooks.state === 'shutdown') {
     into.fans[name].speed = into.fans[name].shutdown_speed
   }
+}
+
+export function updateBME280(into: PrinterStatus, data: BME280StatusData, name: string, eventTarget: EventTarget) {
+  if (into.bme280[name] === undefined) into.bme280[name] = newBME280Status()
+
+  setif(data, 'temperature', into.bme280[name], 'temperature')
+  setif(data, 'pressure', into.bme280[name], 'pressure')
+  setif(data, 'humidity', into.bme280[name], 'humidity')
 }
 
 export function updateMcu(into: PrinterStatus, data: McuStatusData, name: string, eventTarget: EventTarget) {

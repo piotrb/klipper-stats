@@ -59,7 +59,17 @@ export function initMetrics() {
       labelNames: ['name', 'mcu', 'build_versions', 'version'],
     }),
     mcu_stats: mcu_gauges,
-  } as const
+    sensor_humidity: new Gauge({
+      name: 'moonraker_sensor_humidity',
+      help: 'humidity',
+      labelNames: ['name'],
+    }),
+    sensor_pressure: new Gauge({
+      name: 'moonraker_sensor_pressure',
+      help: 'pressure',
+      labelNames: ['name'],
+    }),
+   } as const
 }
 
 export type Metrics = ReturnType<typeof initMetrics>
@@ -75,6 +85,11 @@ export async function emitStats(status: PrinterStatus, metrics: Metrics) {
     if (o[k][vk] !== undefined && condition(o[k][vk])) {
       m.set({ name: k }, o[k][vk] as any as number)
     }
+  }
+  for (const sensorName of Object.keys(status.bme280)) {
+    _s(status.bme280, sensorName, 'humidity', metrics.sensor_humidity),
+    _s(status.bme280, sensorName, 'pressure', metrics.sensor_pressure),
+    _s(status.bme280, sensorName, 'temperature', metrics.temp_temperature)
   }
   for (const fanName of Object.keys(status.fans)) {
     _s(status.fans, fanName, 'speed', metrics.fan_speed)

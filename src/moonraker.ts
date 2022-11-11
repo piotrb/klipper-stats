@@ -2,7 +2,7 @@ import { PrinterStatus, setif } from './internal_status_data_api'
 import { ClientType } from './moonraker_setup'
 import { emitStats, Metrics } from './prom'
 
-import { updateFan, updateTemp, updateMcu, updateWebhooks } from './stats'
+import { updateFan, updateTemp, updateMcu, updateWebhooks, updateBME280 } from './stats'
 import { UpdateHelper } from './UpdateHelper'
 
 async function determineSubscriptionRequestedObjects(client: ClientType) {
@@ -28,6 +28,9 @@ async function determineSubscriptionRequestedObjects(client: ClientType) {
       requestedObjects[object] = ['speed', 'temperature', 'target']
     }
     if (object.match(/^mcu /)) {
+      requestedObjects[object] = null
+    }
+    if (object.match(/^bme280 /)) {
       requestedObjects[object] = null
     }
   }
@@ -100,6 +103,10 @@ export function normalizeAndMergeStatus(into: PrinterStatus, status: any, eventT
 
   updateHelper.on(['webhooks'], (data, name) => {
     updateWebhooks(into, data as any, name, eventTarget)
+  })
+
+  updateHelper.on([/bme280 (?<name>.+)$/], (data, name) => {
+    updateBME280(into, data as any, name, eventTarget)
   })
 
   updateHelper.onElse((data, key) => {

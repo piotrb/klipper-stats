@@ -48,6 +48,11 @@ export interface McuStatusData {
     // BUS_PINS_*: string
   } & Record<string, unknown>
 }
+export interface BME280StatusData {
+  pressure?: number
+  temperature?: number
+  humidity?: number
+}
 // export interface StatusData<T> {
 //   [key: string]: T
 // }
